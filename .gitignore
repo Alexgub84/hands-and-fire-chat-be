@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 pnpm-lock.yaml
 yarn.lock
 
@@ -27,6 +26,7 @@ lerna-debug.log*
 coverage/
 *.lcov
 .nyc_output/
+.tap/
 
 # IDE / Editor
 .vscode/

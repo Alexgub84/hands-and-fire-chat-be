@@ -6,14 +6,16 @@
   "license": "ISC",
   "main": "dist/server.js",
   "keywords": [],
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "vitest",
+    "test": "NODE_ENV=test tap --disable-coverage",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "prepare": "husky"
   },
   "dependencies": {
     "@fastify/formbody": "^8.0.2",
@@ -23,14 +25,23 @@
   },
   "devDependencies": {
     "@types/node": "^24.9.1",
+    "@types/tap": "^15.0.12",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.46.2",
     "eslint": "^9.38.0",
+    "globals": "^16.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.6",
+    "prettier": "^3.6.2",
     "rimraf": "^6.0.1",
+    "tap": "^21.1.1",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3",
-    "vitest": "^2.1.8"
+    "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }
