@@ -1,0 +1,96 @@
+# Project Context
+TypeScript Node.js backend for Twilio messaging. Deployed to Railway via GitHub Actions.
+
+# File Structure
+```
+src/
+├── app.ts              # Fastify app initialization
+├── index.ts            # Entry point
+├── env.ts              # Environment config with Zod validation
+├── routes/
+│   ├── index.ts        # Route registration
+│   └── messages.ts     # Message routes
+├── handlers/
+│   └── messages.ts     # Route handlers
+├── services/
+│   └── twilio.ts       # Twilio service layer
+└── types/
+    └── index.ts        # Shared types
+```
+
+# Stack
+- Runtime: Node.js 20+
+- Language: TypeScript (strict mode)
+- Framework: Fastify
+- SMS Service: Twilio
+- Validation: Zod
+- Testing: Vitest
+- Linting: ESLint + Prettier
+- Deployment: Railway (GitHub Actions CI/CD)
+
+# Architecture Rules
+- Follow backend flow: routes → handlers → services
+- Routes define endpoints and call handlers
+- Handlers process requests/responses and call services
+- Services contain business logic and external API calls (Twilio)
+- Never access Twilio directly from routes or handlers
+- All env config validated in src/env.ts with Zod
+- Services are pure functions, isolated from Fastify
+- Use Fastify plugins for modular route organization
+
+# Code Style
+- Use strict TypeScript: "strict", "noImplicitAny", "strictNullChecks"
+- Naming: descriptive, no abbreviations
+- Prettier + ESLint auto-format
+- Runtime validation: Zod for all schemas and env files
+- No docblocks or TSDoc comments
+
+# Testing
+- Write unit tests for all new logic with Vitest
+- Functions should be small, pure, testable
+- Use DI or mocks for API calls (Twilio client)
+- Test behavior, not implementation
+
+# REST API Design
+- Simple REST conventions: POST /messages/send, GET /messages/health
+- Always return JSON with success/error structure
+- Explicit types for all route handlers (no `any`)
+- Use async/await, never callbacks
+
+# Twilio Integration
+- Service layer isolates Twilio client
+- All phone numbers in E.164 format
+- Error handling in service layer, not routes
+- Return success/error result objects
+
+# Environment Variables
+Required in .env:
+- PORT (defaults to 3000)
+- TWILIO_ACCOUNT_SID
+- TWILIO_AUTH_TOKEN
+- TWILIO_PHONE_NUMBER
+
+# Deployment
+- GitHub Actions workflow at .github/workflows/deploy.yml
+- Railway config at railway.toml
+- RAILWAY_TOKEN required in GitHub secrets
+- Auto-deploy on push to main
+
+# Quality Standards
+- Minimal dependencies, justified additions
+- No circular imports
+- Clear module boundaries
+- Small PRs (<300 lines)
+
+# Auto-generate README
+When user asks "generate readme" or "autogenerate readme", create README.md with:
+- Project name and description
+- Technology stack list
+- Directory structure overview
+- Setup instructions (npm install, env variables)
+- API endpoint documentation (request/response examples)
+- Development commands (dev, build, test)
+- Deployment instructions
+- Testing commands
+- Project status
+
