@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { env } from "../env";
+import { env } from "../env.js";
 import { encoding_for_model, type TiktokenModel } from "tiktoken";
 
 const openai = new OpenAI({

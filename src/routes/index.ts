@@ -1,6 +1,15 @@
 import type { FastifyInstance } from "fastify";
-import { messagesRoutes } from "./messages.js";
+import { messagesRoutes, type MessagesRouteDependencies } from "./messages.js";
 
-export async function registerRoutes(app: FastifyInstance) {
-  await app.register(messagesRoutes);
+export interface RoutesDependencies {
+  messages?: MessagesRouteDependencies;
+}
+
+export async function registerRoutes(
+  app: FastifyInstance,
+  dependencies: RoutesDependencies = {}
+) {
+  await app.register(async (instance) => {
+    await messagesRoutes(instance, dependencies.messages);
+  });
 }
