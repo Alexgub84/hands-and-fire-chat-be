@@ -50,14 +50,32 @@ const envSchema = z
 export type Environment = z.infer<typeof envSchema>;
 
 function validateEnvironment(): Environment {
+  console.log("🔍 Environment Variables Debug:");
+  console.log("NODE_ENV:", process.env.NODE_ENV);
+  console.log("PORT:", process.env.PORT);
+  console.log(
+    "TWILIO_ACCOUNT_SID:",
+    process.env.TWILIO_ACCOUNT_SID?.substring(0, 10) + "..."
+  );
+  console.log(
+    "TWILIO_AUTH_TOKEN:",
+    process.env.TWILIO_AUTH_TOKEN ? "[SET]" : "[NOT SET]"
+  );
+  console.log("TWILIO_PHONE_NUMBER:", process.env.TWILIO_PHONE_NUMBER);
+  console.log(
+    "TWILIO_MESSAGING_SERVICE_SID:",
+    process.env.TWILIO_MESSAGING_SERVICE_SID
+  );
+
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
     console.error("❌ Invalid environment variables:");
-    console.error(result.error.flatten().fieldErrors);
+    console.error(JSON.stringify(result.error.flatten().fieldErrors, null, 2));
     throw new Error("Environment validation failed");
   }
 
+  console.log("✅ Environment validation passed");
   return result.data;
 }
 
