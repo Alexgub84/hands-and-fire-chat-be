@@ -35,6 +35,14 @@ const envSchema = z
         "Messaging Service SID must start with MG or US"
       )
       .optional(),
+    OPENAI_API_KEY: z
+      .string()
+      .min(1, "OpenAI API key is required")
+      .default(isTest ? "test_openai_api_key" : ""),
+    OPENAI_MODEL: z
+      .string()
+      .min(1, "OpenAI model is required")
+      .default("gpt-4o-mini"),
   })
   .refine(
     (data) =>

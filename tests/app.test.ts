@@ -1,5 +1,5 @@
 import { test } from "tap";
-import { buildApp } from "./app.js";
+import { buildApp } from "../src/app.js";
 
 test("GET / returns ok", async (t) => {
   const app = await buildApp();

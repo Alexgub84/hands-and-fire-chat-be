@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { whatsappMessageSchema } from "../types/index.js";
 import { sendWhatsAppMessage } from "../services/twilio.js";
+import { generateSimpleResponse } from "../services/openai.js";
 
 export async function handleWhatsAppWebhook(
   request: FastifyRequest,
@@ -18,8 +19,8 @@ export async function handleWhatsAppWebhook(
   const { From, Body } = parsed.data;
 
   request.log.info(`Received WhatsApp message from ${From}: ${Body}`);
-
-  const result = await sendWhatsAppMessage(From, "SO cool!");
+  const openaiResponse = await generateSimpleResponse(Body);
+  const result = await sendWhatsAppMessage(From, openaiResponse);
 
   if (!result.success) {
     request.log.error(`Failed to send message: ${result.error}`);
