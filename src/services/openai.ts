@@ -496,6 +496,35 @@ export function createOpenAIService(
     }
 
     const trimmedRequest = trimContext(requestMessages);
+
+    if (knowledgeApplied && knowledgeContext) {
+      knowledgeApplied = requestMessages.includes(knowledgeContext.message);
+    }
+
+    const totalRequestTokens = countTokens(requestMessages);
+    const knowledgeTokens =
+      knowledgeApplied && knowledgeContext
+        ? countTokens([knowledgeContext.message])
+        : 0;
+    const userTokens = countTokens([
+      requestMessages[requestMessages.length - 1] ?? {
+        role: "user",
+        content: "",
+      },
+    ]);
+    const conversationTokens = Math.max(
+      0,
+      totalRequestTokens - knowledgeTokens - userTokens
+    );
+
+    logInfo("openai.tokens.breakdown", {
+      conversationId,
+      requestTokens: totalRequestTokens,
+      conversationTokens,
+      knowledgeTokens,
+      userTokens,
+      tokenLimit,
+    });
     const startedAt = Date.now();
 
     let response: OpenAI.Chat.Completions.ChatCompletion;
@@ -534,7 +563,7 @@ export function createOpenAIService(
     messages.push(enrichedResponseMessage);
     const trimmedAfterCall = trimContext(messages);
     const totalTokens = countTokens(messages);
-    const requestTokens = countTokens(requestMessages);
+    const requestTokens = totalRequestTokens;
 
     const payload: Record<string, unknown> = {
       conversationId,
@@ -544,6 +573,9 @@ export function createOpenAIService(
       trimmed: trimmedBeforeCall || trimmedAfterCall || trimmedRequest,
       knowledgeApplied,
       requestTokens,
+      conversationTokens,
+      knowledgeTokens,
+      userTokens,
     };
 
     logInfo("openai.tokens", payload);
