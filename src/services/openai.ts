@@ -105,7 +105,7 @@ export function createOpenAIService(
         .getOrCreateCollection({ name: chromaCollection })
         .catch((error) => {
           chromaCollectionPromise = null;
-          logWarn("chroma.collection.resolve.failed", {
+          logError("chroma.collection.resolve.failed", {
             collection: chromaCollection,
             error: error instanceof Error ? error.message : error,
           });
@@ -125,7 +125,7 @@ export function createOpenAIService(
       await chromaClient.heartbeat();
       logInfo("chroma.heartbeat.success");
     } catch (error) {
-      logWarn("chroma.heartbeat.failed", {
+      logError("chroma.heartbeat.failed", {
         error: error instanceof Error ? error.message : error,
       });
     }
@@ -309,7 +309,7 @@ export function createOpenAIService(
         },
       } satisfies KnowledgeContext;
     } catch (error) {
-      logWarn("chroma.query.failed", {
+      logError("chroma.query.failed", {
         conversationId,
         collection: chromaCollection,
         error: error instanceof Error ? error.message : error,

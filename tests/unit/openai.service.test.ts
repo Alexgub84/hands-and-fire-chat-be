@@ -1,13 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { ChromaClient } from "chromadb";
+import type { Tiktoken } from "tiktoken";
 import { createOpenAIService } from "../../src/services/openai.js";
 import { createFakeOpenAIClient } from "../../src/clients/openai.fake.js";
 import { createFakeChromaClient } from "../../src/clients/chromadb.fake.js";
+import { logger } from "../../src/logger.js";
 
 describe("createOpenAIService", () => {
-  const tokenizer = {
-    encode: (value: string) => Array.from(value).map((_, index) => index),
+  const tokenizer: Pick<Tiktoken, "encode"> = {
+    encode: (value: string) =>
+      Uint32Array.from(Array.from(value).map((_, index) => index)),
   };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("returns assistant reply from fake client", async () => {
     const service = createOpenAIService({
@@ -134,5 +142,51 @@ describe("createOpenAIService", () => {
       "קישור לסדנאות\nhttps://handsandfire.com/workshops"
     );
     expect(response).not.toContain("](#");
+  });
+
+  it("logs chroma query failures as errors", async () => {
+    const fakeLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(),
+    } as const;
+
+    vi.spyOn(logger, "child").mockImplementation(
+      () => fakeLogger as unknown as never
+    );
+
+    const chromaClient = {
+      heartbeat: vi.fn().mockResolvedValue(Date.now()),
+      getOrCreateCollection: vi.fn().mockResolvedValue({
+        query: vi.fn().mockRejectedValue(new Error("missing collection")),
+      }),
+    } as unknown as ChromaClient;
+
+    const service = createOpenAIService({
+      client: createFakeOpenAIClient(),
+      model: "gpt-4o-mini",
+      tokenLimit: 200,
+      systemPrompt: "You are helpful",
+      embeddingModel: "text-embedding-3-small",
+      tokenizer,
+      chromaClient,
+      chromaCollection: "test-collection",
+    });
+
+    const response = await service.generateReply(
+      "conversation-error",
+      "Hello there"
+    );
+
+    expect(response).toContain("Hello there");
+    expect(fakeLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "conversation-error",
+        collection: "test-collection",
+        error: "missing collection",
+      }),
+      "chroma.query.failed"
+    );
   });
 });
