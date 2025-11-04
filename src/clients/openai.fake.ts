@@ -34,5 +34,23 @@ export function createFakeOpenAIClient(): OpenAI {
         },
       },
     },
+    embeddings: {
+      create: async ({
+        input,
+      }: {
+        input: string | string[];
+        model: string;
+      }) => {
+        const values = Array.isArray(input) ? input : [input];
+        return {
+          data: values.map((value, index) => {
+            const base = value.length + index;
+            return {
+              embedding: [base, base / 2, base / 4],
+            };
+          }),
+        } as unknown;
+      },
+    },
   } as unknown as OpenAI;
 }

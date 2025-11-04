@@ -15,6 +15,7 @@ describe("createOpenAIService", () => {
       model: "gpt-4o-mini",
       tokenLimit: 500,
       systemPrompt: "You are helpful",
+      embeddingModel: "text-embedding-3-small",
       tokenizer,
       chromaClient: createFakeChromaClient(),
       chromaCollection: "test-collection",
@@ -32,6 +33,7 @@ describe("createOpenAIService", () => {
       model: "gpt-4o-mini",
       tokenLimit: 100,
       systemPrompt: "You are helpful",
+      embeddingModel: "text-embedding-3-small",
       tokenizer,
       chromaClient: createFakeChromaClient(),
       chromaCollection: "test-collection",
@@ -49,13 +51,17 @@ describe("createOpenAIService", () => {
   });
 
   it("queries chroma for contextual knowledge", async () => {
-    const queries: Array<{ queryTexts?: string[] }> = [];
+    const queries: Array<{
+      queryTexts?: string[];
+      queryEmbeddings?: number[][];
+    }> = [];
 
     const service = createOpenAIService({
       client: createFakeOpenAIClient(),
       model: "gpt-4o-mini",
       tokenLimit: 200,
       systemPrompt: "You are helpful",
+      embeddingModel: "text-embedding-3-small",
       tokenizer,
       chromaClient: createFakeChromaClient({
         documents: ["Hands and Fire workshop details"],
@@ -72,6 +78,7 @@ describe("createOpenAIService", () => {
 
     expect(queries).toHaveLength(1);
     expect(queries[0]?.queryTexts).toEqual(["Tell me about workshops"]);
+    expect(queries[0]?.queryEmbeddings?.[0]?.length).toBeGreaterThan(0);
   });
 
   it("converts markdown links to plain URLs", async () => {
@@ -80,6 +87,7 @@ describe("createOpenAIService", () => {
       model: "gpt-4o-mini",
       tokenLimit: 200,
       systemPrompt: "Respond clearly",
+      embeddingModel: "text-embedding-3-small",
       tokenizer,
       chromaClient: createFakeChromaClient(),
       chromaCollection: "test-collection",
@@ -102,6 +110,7 @@ describe("createOpenAIService", () => {
       model: "gpt-4o-mini",
       tokenLimit: 200,
       systemPrompt: "Respond clearly",
+      embeddingModel: "text-embedding-3-small",
       tokenizer,
       chromaClient: createFakeChromaClient({
         documents: ["Hands and Fire workshop details"],

@@ -9,6 +9,8 @@ import { logger } from "../logger.js";
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
+type EmbeddingVector = number[];
+
 interface KnowledgeEntry {
   title: string;
   source?: string | null;
@@ -24,11 +26,13 @@ export interface OpenAIServiceOptions {
   model: string;
   tokenLimit: number;
   systemPrompt: string;
+  embeddingModel: string;
   tokenizer?: Pick<Tiktoken, "encode">;
   chromaClient: ChromaClient;
   chromaCollection: string;
   chromaMaxResults?: number;
   chromaMaxCharacters?: number;
+  embedTexts?: (texts: string[]) => Promise<EmbeddingVector[]>;
 }
 
 export interface OpenAIService {
@@ -46,6 +50,7 @@ export function createOpenAIService(
     systemPrompt,
     chromaClient,
     chromaCollection,
+    embeddingModel,
   } = options;
   const tokenizer =
     options.tokenizer ?? encoding_for_model(model as TiktokenModel);
@@ -67,6 +72,32 @@ export function createOpenAIService(
   const logError = (message: string, meta?: Record<string, unknown>) => {
     serviceLogger.error(meta ?? {}, message);
   };
+
+  const isEmbeddingVector = (value: unknown): value is EmbeddingVector =>
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (element) => typeof element === "number" && Number.isFinite(element)
+    );
+
+  const embedTexts =
+    options.embedTexts ??
+    (async (texts: string[]): Promise<EmbeddingVector[]> => {
+      const response = await client.embeddings.create({
+        model: embeddingModel,
+        input: texts,
+      });
+
+      return response.data.map((item, index) => {
+        const embedding = item.embedding;
+        if (!isEmbeddingVector(embedding)) {
+          throw new Error(
+            `Invalid embedding vector received from OpenAI at index ${index}`
+          );
+        }
+        return embedding;
+      });
+    });
 
   const resolveChromaCollection = async (): Promise<Collection | null> => {
     if (!chromaCollectionPromise) {
@@ -184,8 +215,27 @@ export function createOpenAIService(
       return null;
     }
 
+    let queryEmbeddings: EmbeddingVector[];
+    try {
+      queryEmbeddings = await embedTexts([userMessage]);
+    } catch (error) {
+      logWarn("openai.embedding.failed", {
+        conversationId,
+        error: error instanceof Error ? error.message : error,
+      });
+      return null;
+    }
+
+    if (!Array.isArray(queryEmbeddings) || queryEmbeddings.length === 0) {
+      logWarn("openai.embedding.empty", {
+        conversationId,
+      });
+      return null;
+    }
+
     try {
       const queryResult = await collection.query({
+        queryEmbeddings,
         queryTexts: [userMessage],
         nResults: chromaMaxResults,
         include: ["documents", "metadatas", "distances"],

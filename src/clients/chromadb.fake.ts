@@ -6,7 +6,10 @@ export interface FakeChromaClientOptions {
   documents?: Array<string | null>;
   metadatas?: Array<Record<string, unknown> | null>;
   distances?: Array<number | null>;
-  onQuery?: (args: { queryTexts?: string[] }) => void;
+  onQuery?: (args: {
+    queryTexts?: string[];
+    queryEmbeddings?: number[][];
+  }) => void;
 }
 
 export function createFakeChromaClient(
@@ -15,7 +18,10 @@ export function createFakeChromaClient(
   const { documents = [], metadatas = [], distances = [], onQuery } = options;
 
   const collection = {
-    query: async (args: { queryTexts?: string[] }) => {
+    query: async (args: {
+      queryTexts?: string[];
+      queryEmbeddings?: number[][];
+    }) => {
       onQuery?.(args);
       return {
         documents: [documents],

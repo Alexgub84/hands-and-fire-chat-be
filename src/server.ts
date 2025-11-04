@@ -54,6 +54,7 @@ export async function startServer(
     model: env.OPENAI_MODEL,
     tokenLimit: env.OPENAI_MAX_CONTEXT_TOKENS,
     systemPrompt: JSON.stringify(defaultSystemPrompt),
+    embeddingModel: env.OPENAI_EMBEDDING_MODEL,
     chromaClient,
     chromaCollection: env.CHROMA_COLLECTION,
   });

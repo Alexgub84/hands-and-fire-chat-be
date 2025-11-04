@@ -43,6 +43,10 @@ const envSchema = z
       .string()
       .min(1, "OpenAI model is required")
       .default("gpt-4o-mini"),
+    OPENAI_EMBEDDING_MODEL: z
+      .string()
+      .min(1, "OpenAI embedding model is required")
+      .default("text-embedding-3-small"),
     OPENAI_MAX_CONTEXT_TOKENS: z
       .string()
       .default("700")
@@ -105,6 +109,10 @@ function validateEnvironment(): Environment {
   console.log(
     "OPENAI_MAX_CONTEXT_TOKENS:",
     process.env.OPENAI_MAX_CONTEXT_TOKENS ?? "[default 700]"
+  );
+  console.log(
+    "OPENAI_EMBEDDING_MODEL:",
+    process.env.OPENAI_EMBEDDING_MODEL ?? "[default text-embedding-3-small]"
   );
   console.log(
     "CHROMA_API_KEY:",
