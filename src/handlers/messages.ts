@@ -49,7 +49,6 @@ export function createMessagesHandlers(
 
       request.log.info(`Received WhatsApp message from ${From}: ${Body}`);
 
-      // Check if user is requesting export
       if (Body.trim().toLowerCase() === "export" && saveConversationCsv) {
         try {
           const getHistory = dependencies.getConversationHistory;

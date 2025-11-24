@@ -50,15 +50,13 @@ describe("ConversationHistoryService", () => {
   });
 
   it("should trim context when exceeding limit", () => {
-    service.addMessage("test-id", { role: "user", content: "123456" }); // 6 tokens
-    service.addMessage("test-id", { role: "assistant", content: "123456" }); // 6 tokens
-    // Total 12 + system prompt > 10
+    service.addMessage("test-id", { role: "user", content: "123456" });
+    service.addMessage("test-id", { role: "assistant", content: "123456" });
 
     const trimmed = service.trimContext(service.getMessages("test-id"));
     expect(trimmed).toBe(true);
 
     const messages = service.getMessages("test-id");
-    // Should remove oldest non-system message
     expect(messages.length).toBeLessThan(3);
     expect(messages[0].role).toBe("system");
   });

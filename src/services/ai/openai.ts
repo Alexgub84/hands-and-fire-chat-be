@@ -28,7 +28,6 @@ export interface OpenAIServiceOptions {
   chromaMaxResults?: number;
   chromaMaxCharacters?: number;
   embedTexts?: (texts: string[]) => Promise<EmbeddingVector[]>;
-  // Dependency injection for services (optional, useful for testing)
   conversationHistoryService?: ConversationHistoryService;
   knowledgeBaseService?: KnowledgeBaseService;
 }
@@ -97,15 +96,12 @@ export function createOpenAIService(
     conversationId: string,
     message: string
   ): Promise<string> => {
-    // 1. Get conversation and add user message
     const messages = conversationHistory.getMessages(conversationId);
     const userMessage: ChatMessage = { role: "user", content: message };
     conversationHistory.addMessage(conversationId, userMessage);
 
-    // 2. Initial Trim
     const trimmedBeforeCall = conversationHistory.trimContext(messages);
 
-    // 3. Knowledge Retrieval
     const requestMessages = [...messages];
     const knowledgeContext = await knowledgeBase.buildKnowledgeContext(
       conversationId,
@@ -116,7 +112,6 @@ export function createOpenAIService(
     let knowledgeApplied = false;
 
     if (knowledgeContext) {
-      // Insert system message with knowledge before the last user message
       requestMessages.splice(
         requestMessages.length - 1,
         0,
@@ -124,7 +119,6 @@ export function createOpenAIService(
       );
       knowledgeApplied = true;
 
-      // Check if knowledge pushes us over limit
       if (conversationHistory.countTokens(requestMessages) > tokenLimit) {
         const index = requestMessages.indexOf(knowledgeContext.message);
         if (index >= 0) {
@@ -138,14 +132,12 @@ export function createOpenAIService(
       }
     }
 
-    // 4. Trim Request Context (if needed)
     const trimmedRequest = conversationHistory.trimContext(requestMessages);
 
     if (knowledgeApplied && knowledgeContext) {
       knowledgeApplied = requestMessages.includes(knowledgeContext.message);
     }
 
-    // 5. Token Accounting
     const totalRequestTokens = conversationHistory.countTokens(requestMessages);
     const knowledgeTokens =
       knowledgeApplied && knowledgeContext
@@ -172,7 +164,6 @@ export function createOpenAIService(
     });
     const startedAt = Date.now();
 
-    // 6. OpenAI Call
     let response: OpenAI.Chat.Completions.ChatCompletion;
     try {
       response = await client.chat.completions.create({
@@ -196,7 +187,6 @@ export function createOpenAIService(
       throw new Error("No content returned from OpenAI response");
     }
 
-    // 7. Normalize Response
     const normalizedContent = normalizeAssistantReply(
       responseMessage.content,
       knowledgeEntries
@@ -207,7 +197,6 @@ export function createOpenAIService(
       content: normalizedContent,
     };
 
-    // 8. Update History
     conversationHistory.addMessage(conversationId, enrichedResponseMessage);
     const trimmedAfterCall = conversationHistory.trimContext(messages);
 
