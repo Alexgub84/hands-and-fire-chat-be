@@ -1,5 +1,5 @@
 {
-  "name": "twilio-be",
+  "name": "hands-and-fire-chat-be",
   "version": "1.2.0",
   "description": "TypeScript Node.js backend for Twilio messaging",
   "author": "",

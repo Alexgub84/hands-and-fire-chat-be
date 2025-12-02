@@ -22,7 +22,7 @@ TypeScript Fastify backend for WhatsApp automation that blends Twilio messaging,
 ## Directory Structure
 
 ```
-twilio-be/
+hands-and-fire-chat-be/
 ├── src/
 │   ├── app.ts                 # Builds Fastify instance and wiring
 │   ├── index.ts               # Entry point (production)
@@ -78,7 +78,7 @@ twilio-be/
 1. Clone and install dependencies
    ```bash
    git clone <repository-url>
-   cd twilio-be
+   cd hands-and-fire-chat-be
    npm install
    ```
 2. Copy the environment template and populate secrets
