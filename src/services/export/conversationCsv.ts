@@ -63,6 +63,13 @@ export async function saveConversationCsv(
         return dependencies.drive;
       }
 
+      if (
+        !environment.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
+        !environment.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+      ) {
+        throw new Error("Google Drive credentials are required");
+      }
+
       const createClient =
         dependencies.createDriveClient ?? createGoogleDriveClient;
       return createClient({
@@ -81,6 +88,10 @@ export async function saveConversationCsv(
       options.conversationId,
       options.messages
     );
+
+    if (!environment.GOOGLE_DRIVE_FOLDER_ID) {
+      throw new Error("Google Drive folder ID is required");
+    }
 
     const file = await createFile({
       drive,

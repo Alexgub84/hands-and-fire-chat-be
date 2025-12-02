@@ -44,9 +44,6 @@ export async function buildApp({
     sendWhatsAppMessage:
       messages?.sendWhatsAppMessage ??
       ((to, body) => twilioService.sendWhatsAppMessage(to, body)),
-    ...(messages?.saveConversationCsv && {
-      saveConversationCsv: messages.saveConversationCsv,
-    }),
     getConversationHistory:
       messages?.getConversationHistory ??
       ((conversationId) =>

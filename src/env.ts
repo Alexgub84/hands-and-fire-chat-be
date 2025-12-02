@@ -76,26 +76,9 @@ const envSchema = z
       .string()
       .min(1, "Chroma collection is required")
       .default(isTest ? "test_chroma_collection" : ""),
-    GOOGLE_SERVICE_ACCOUNT_EMAIL: isTest
-      ? z
-          .string()
-          .email("Google service account email must be a valid email")
-          .default("service-account@example.com")
-      : z.string().email("Google service account email must be a valid email"),
-    GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: isTest
-      ? z
-          .string()
-          .min(1, "Google service account private key is required")
-          .default(
-            "-----BEGIN PRIVATE KEY-----\\nTEST_PRIVATE_KEY\\n-----END PRIVATE KEY-----"
-          )
-      : z.string().min(1, "Google service account private key is required"),
-    GOOGLE_DRIVE_FOLDER_ID: isTest
-      ? z
-          .string()
-          .min(1, "Google Drive folder ID is required")
-          .default("test-google-drive-folder-id")
-      : z.string().min(1, "Google Drive folder ID is required"),
+    GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
+    GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional(),
+    GOOGLE_DRIVE_FOLDER_ID: z.string().optional(),
   })
   .refine(
     (data) =>
@@ -162,23 +145,6 @@ function logEnvironmentDebug(): void {
   envLogger.debug(
     { collection: process.env.CHROMA_COLLECTION ?? "[not set]" },
     "env.CHROMA_COLLECTION"
-  );
-  envLogger.debug(
-    {
-      serviceAccountEmail:
-        process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? "[not set]",
-    },
-    "env.GOOGLE_SERVICE_ACCOUNT_EMAIL"
-  );
-  envLogger.debug(
-    {
-      isPrivateKeySet: Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
-    },
-    "env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY"
-  );
-  envLogger.debug(
-    { folderId: process.env.GOOGLE_DRIVE_FOLDER_ID ?? "[not set]" },
-    "env.GOOGLE_DRIVE_FOLDER_ID"
   );
 }
 
