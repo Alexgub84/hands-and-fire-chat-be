@@ -58,6 +58,7 @@ export async function startServer(
     openAIApiKey: env.OPENAI_API_KEY,
     chromaClient,
     chromaCollection: env.CHROMA_COLLECTION,
+    chromaSimilarityThreshold: env.CHROMA_SIMILARITY_THRESHOLD,
   });
 
   const twilioOptions: Parameters<typeof createTwilioService>[0] = {

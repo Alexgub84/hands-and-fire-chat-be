@@ -14,6 +14,10 @@ import {
   type KnowledgeEntry,
 } from "./knowledgeBase.js";
 import { normalizeAssistantReply } from "../../utils/contentNormalizer.js";
+import {
+  fallbackResponse,
+  factualQueryKeywords,
+} from "../../prompts/fallback.js";
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
@@ -32,6 +36,7 @@ export interface OpenAIServiceOptions {
   embedTexts?: (texts: string[]) => Promise<EmbeddingVector[]>;
   conversationHistoryService?: ConversationHistoryService;
   knowledgeBaseService?: KnowledgeBaseService;
+  chromaSimilarityThreshold?: number;
 }
 
 export interface GenerateReplyResult {
@@ -120,36 +125,149 @@ export function createOpenAIService(
     return messages;
   }
 
+  function isFactualQuery(message: string): boolean {
+    const lowerMessage = message.toLowerCase();
+    return factualQueryKeywords.some((keyword) =>
+      lowerMessage.includes(keyword.toLowerCase())
+    );
+  }
+
+  function generateFallbackResponse(
+    conversationId: string,
+    message: string,
+    userTokens: number
+  ): GenerateReplyResult {
+    logInfo("fallback.response.triggered", {
+      conversationId,
+      message,
+      reason: "missing_knowledge_context",
+    });
+
+    return {
+      response: fallbackResponse,
+      tokens: {
+        totalTokens: userTokens,
+        usageTokens: null,
+        requestTokens: 0,
+        conversationTokens: 0,
+        knowledgeTokens: 0,
+        userTokens: userTokens,
+        durationMs: 0,
+      },
+    };
+  }
+
   function applyKnowledgeContext(
     requestMessages: ChatMessage[],
     knowledgeContext: KnowledgeContext | null
-  ): { messages: ChatMessage[]; applied: boolean } {
+  ): { messages: ChatMessage[]; applied: boolean; chunksUsed: number } {
     if (!knowledgeContext) {
-      return { messages: requestMessages, applied: false };
+      return { messages: requestMessages, applied: false, chunksUsed: 0 };
     }
 
-    const messagesWithKnowledge = [...requestMessages];
-    messagesWithKnowledge.splice(
-      messagesWithKnowledge.length - 1,
-      0,
-      knowledgeContext.message
-    );
+    // Try with all chunks first
+    const originalEntries = [...knowledgeContext.entries];
 
-    const exceedsTokenLimit =
-      conversationHistory.countTokens(messagesWithKnowledge) > tokenLimit;
-
-    if (exceedsTokenLimit) {
-      const index = messagesWithKnowledge.indexOf(knowledgeContext.message);
-      if (index >= 0) {
-        messagesWithKnowledge.splice(index, 1);
-      }
-      logWarn("chroma.context.dropped", {
-        reason: "token_limit",
+    // Helper to build context message with specific number of entries
+    const buildContextMessage = (entries: KnowledgeEntry[]): ChatMessage => {
+      const contextEntries = entries.map((entry) => {
+        const scoreFragment = "";
+        return `- (${entry.title} | source: ${entry.source}${scoreFragment}) ${entry.title}`;
       });
-      return { messages: messagesWithKnowledge, applied: false };
+
+      const contextString = `Knowledge base context:\n${contextEntries.join("\n")}`;
+      return {
+        role: "system",
+        content: contextString,
+      } as ChatMessage;
+    };
+
+    // Try with all chunks (5)
+    if (originalEntries.length > 0) {
+      const fullContext = buildContextMessage(originalEntries);
+      const messagesWithFullKnowledge = [...requestMessages];
+      messagesWithFullKnowledge.splice(
+        messagesWithFullKnowledge.length - 1,
+        0,
+        fullContext
+      );
+
+      if (
+        conversationHistory.countTokens(messagesWithFullKnowledge) <= tokenLimit
+      ) {
+        return {
+          messages: messagesWithFullKnowledge,
+          applied: true,
+          chunksUsed: originalEntries.length,
+        };
+      }
+
+      // Try with 3 chunks (most relevant)
+      if (originalEntries.length > 3) {
+        const reducedEntries = originalEntries.slice(0, 3);
+        const reducedContext = buildContextMessage(reducedEntries);
+        const messagesWithReducedKnowledge = [...requestMessages];
+        messagesWithReducedKnowledge.splice(
+          messagesWithReducedKnowledge.length - 1,
+          0,
+          reducedContext
+        );
+
+        if (
+          conversationHistory.countTokens(messagesWithReducedKnowledge) <=
+          tokenLimit
+        ) {
+          logWarn("chroma.context.degraded", {
+            reason: "token_limit",
+            originalChunks: originalEntries.length,
+            reducedChunks: 3,
+          });
+          return {
+            messages: messagesWithReducedKnowledge,
+            applied: true,
+            chunksUsed: 3,
+          };
+        }
+      }
+
+      // Try with 1 chunk (most relevant)
+      if (originalEntries.length > 1) {
+        const firstEntry = originalEntries[0];
+        if (firstEntry) {
+          const singleEntry = [firstEntry];
+          const singleContext = buildContextMessage(singleEntry);
+          const messagesWithSingleKnowledge = [...requestMessages];
+          messagesWithSingleKnowledge.splice(
+            messagesWithSingleKnowledge.length - 1,
+            0,
+            singleContext
+          );
+
+          if (
+            conversationHistory.countTokens(messagesWithSingleKnowledge) <=
+            tokenLimit
+          ) {
+            logWarn("chroma.context.degraded", {
+              reason: "token_limit",
+              originalChunks: originalEntries.length,
+              reducedChunks: 1,
+            });
+            return {
+              messages: messagesWithSingleKnowledge,
+              applied: true,
+              chunksUsed: 1,
+            };
+          }
+        }
+      }
     }
 
-    return { messages: messagesWithKnowledge, applied: true };
+    // All KB context dropped
+    logWarn("chroma.context.dropped_all", {
+      reason: "token_limit",
+      originalChunks: originalEntries.length,
+    });
+    return { messages: requestMessages, applied: false, chunksUsed: 0 };
   }
 
   function calculateTokenBreakdown(
@@ -250,25 +368,39 @@ export function createOpenAIService(
       conversationId,
       message
     );
-    const knowledgeEntries = knowledgeContext?.entries ?? [];
+    const knowledgeEntries: KnowledgeEntry[] = knowledgeContext?.entries ?? [];
 
-    const { messages: finalRequestMessages, applied: knowledgeApplied } =
-      applyKnowledgeContext(requestMessages, knowledgeContext);
+    const {
+      messages: finalRequestMessages,
+      applied: knowledgeApplied,
+      chunksUsed,
+    } = applyKnowledgeContext(requestMessages, knowledgeContext);
 
     const trimmedRequest =
       conversationHistory.trimContext(finalRequestMessages);
 
     const verifiedKnowledgeApplied = Boolean(
-      knowledgeApplied &&
-        knowledgeContext &&
-        finalRequestMessages.includes(knowledgeContext.message)
+      knowledgeApplied && knowledgeContext && chunksUsed > 0
     );
 
+    // Calculate token breakdown first
     const tokenBreakdown = calculateTokenBreakdown(
       finalRequestMessages,
       verifiedKnowledgeApplied,
       knowledgeContext
     );
+
+    // Check if we should use fallback response
+    const isFactual = isFactualQuery(message);
+    const hasKnowledgeContext = verifiedKnowledgeApplied && chunksUsed > 0;
+
+    if (isFactual && !hasKnowledgeContext) {
+      return generateFallbackResponse(
+        conversationId,
+        message,
+        tokenBreakdown.userTokens
+      );
+    }
 
     logInfo("openai.tokens.breakdown", {
       conversationId,
@@ -277,6 +409,10 @@ export function createOpenAIService(
       knowledgeTokens: tokenBreakdown.knowledgeTokens,
       userTokens: tokenBreakdown.userTokens,
       tokenLimit,
+      chunksUsed,
+      originalChunks: knowledgeContext?.entries.length ?? 0,
+      isFactual,
+      hasKnowledgeContext,
     });
 
     const startedAt = Date.now();

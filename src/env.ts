@@ -76,6 +76,18 @@ const envSchema = z
       .string()
       .min(1, "Chroma collection is required")
       .default(isTest ? "test_chroma_collection" : ""),
+    CHROMA_SIMILARITY_THRESHOLD: z
+      .string()
+      .default("0.70")
+      .transform((value) => {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+          throw new Error(
+            "CHROMA_SIMILARITY_THRESHOLD must be a number between 0 and 1"
+          );
+        }
+        return parsed;
+      }),
     GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
     GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional(),
     GOOGLE_DRIVE_FOLDER_ID: z.string().optional(),

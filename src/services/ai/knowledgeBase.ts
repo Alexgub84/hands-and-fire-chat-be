@@ -92,6 +92,7 @@ export interface KnowledgeBaseServiceOptions {
   openAIApiKey: string;
   chromaMaxResults?: number;
   chromaMaxCharacters?: number;
+  chromaSimilarityThreshold?: number;
   embedTexts?: (texts: string[]) => Promise<EmbeddingVector[]>;
   openaiClient: OpenAI; // Used for fallback embedding if custom embedTexts not provided
 }
@@ -117,6 +118,7 @@ export function createKnowledgeBaseService(
   const serviceLogger = logger.child({ module: "knowledge-base-service" });
   const chromaMaxResults = options.chromaMaxResults ?? 5;
   const chromaMaxCharacters = options.chromaMaxCharacters ?? 1500;
+  const chromaSimilarityThreshold = options.chromaSimilarityThreshold ?? 0.7;
 
   let chromaCollectionPromise: Promise<Collection> | null = null;
 
@@ -254,45 +256,79 @@ export function createKnowledgeBaseService(
 
       const entriesForContext: KnowledgeEntry[] = [];
 
-      documents.forEach((doc, index) => {
-        if (!doc) {
-          return;
-        }
+      // Filter results by similarity threshold
+      const filteredResults = documents
+        .map((doc, index) => {
+          const metadata =
+            (Array.isArray(metadatas) ? metadatas[index] : null) ?? {};
+          const title =
+            metadata && typeof metadata.title === "string"
+              ? metadata.title
+              : `snippet-${index + 1}`;
+          const source =
+            metadata && typeof metadata.source === "string"
+              ? metadata.source
+              : "unknown";
+          const distance = Array.isArray(distances) ? distances[index] : null;
+          const similarity = typeof distance === "number" ? 1 - distance : null;
 
-        const metadata =
-          (Array.isArray(metadatas) ? metadatas[index] : null) ?? {};
-        const title =
-          metadata && typeof metadata.title === "string"
-            ? metadata.title
-            : `snippet-${index + 1}`;
-        const source =
-          metadata && typeof metadata.source === "string"
-            ? metadata.source
-            : "unknown";
-        const distance = Array.isArray(distances) ? distances[index] : null;
+          return {
+            document: doc,
+            metadata,
+            title,
+            source,
+            distance,
+            similarity,
+          };
+        })
+        .filter((item) => {
+          if (item.similarity === null) return false;
+          const passesThreshold = item.similarity >= chromaSimilarityThreshold;
+          if (!passesThreshold) {
+            logInfo("chroma.query.result.filtered", {
+              conversationId,
+              title: item.title,
+              similarity: item.similarity,
+              threshold: chromaSimilarityThreshold,
+            });
+          }
+          return passesThreshold;
+        });
 
-        entriesForContext.push({ title, source });
+      if (filteredResults.length === 0) {
+        const maxSimilarity =
+          distances.length > 0
+            ? Math.max(
+                ...distances.map((d) => (typeof d === "number" ? 1 - d : 0))
+              )
+            : null;
+        logInfo("chroma.query.below_threshold", {
+          conversationId,
+          collection: chromaCollection,
+          threshold: chromaSimilarityThreshold,
+          maxSimilarity,
+          requestedResults: chromaMaxResults,
+        });
+        return null;
+      }
+
+      filteredResults.forEach((item) => {
+        if (!item.document) return;
+
+        entriesForContext.push({ title: item.title, source: item.source });
 
         const scoreFragment =
-          typeof distance === "number"
-            ? ` | score: ${distance.toFixed(4)}`
+          typeof item.distance === "number"
+            ? ` | score: ${item.distance.toFixed(4)}`
             : "";
 
         entries.push(
-          `- (${title} | source: ${source}${scoreFragment}) ${truncate(
-            doc,
+          `- (${item.title} | source: ${item.source}${scoreFragment}) ${truncate(
+            item.document,
             perDocumentLimit
           )}`
         );
       });
-
-      if (entries.length === 0) {
-        logInfo("chroma.query.empty", {
-          conversationId,
-          collection: chromaCollection,
-        });
-        return null;
-      }
 
       const contextString = `Knowledge base context:\n${entries.join("\n")}`;
 
@@ -300,6 +336,7 @@ export function createKnowledgeBaseService(
         conversationId,
         collection: chromaCollection,
         results: entries.length,
+        threshold: chromaSimilarityThreshold,
       });
 
       return {
