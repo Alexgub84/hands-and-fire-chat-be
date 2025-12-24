@@ -15,6 +15,7 @@ import {
 } from "./clients/chromadb.js";
 import { createFakeChromaClient } from "./clients/chromadb.fake.js";
 import { createSessionManager } from "./services/ai/sessionManager.js";
+import { createConversationDriveService } from "./services/messaging/conversationDrive.js";
 
 function shouldUseFakeClients() {
   if (typeof process.env.USE_FAKE_CLIENTS === "string") {
@@ -92,9 +93,12 @@ export async function startServer(
 
   const twilioService = createTwilioService(twilioOptions);
 
+  const conversationDriveService = createConversationDriveService();
+
   const app = await buildApp({
     openAIService,
     twilioService,
+    conversationDriveService,
   });
 
   await app.listen({

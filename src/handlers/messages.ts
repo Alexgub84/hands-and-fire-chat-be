@@ -7,6 +7,7 @@ import type OpenAI from "openai";
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
 import type { GenerateReplyResult } from "../services/ai/openai.js";
+import type { ConversationDriveService } from "../services/messaging/conversationDrive.js";
 
 export interface MessagesHandlerDependencies {
   generateSimpleResponse: (
@@ -21,6 +22,7 @@ export interface MessagesHandlerDependencies {
   getConversationHistory?: (
     conversationId: string
   ) => ChatMessage[] | Promise<ChatMessage[]>;
+  conversationDriveService?: ConversationDriveService;
 }
 
 async function handleExportRequest(
@@ -80,6 +82,7 @@ export function createMessagesHandlers(
     sendWhatsAppMessage,
     saveConversationCsv,
     getConversationHistory,
+    conversationDriveService,
   } = dependencies;
 
   if (!generateSimpleResponse || !sendWhatsAppMessage) {
@@ -147,6 +150,18 @@ export function createMessagesHandlers(
           error: "Failed to send message",
           details: result.error,
         });
+      }
+
+      if (conversationDriveService && getConversationHistory) {
+        try {
+          const messages = await Promise.resolve(getConversationHistory(From));
+          await conversationDriveService.saveConversation(From, messages);
+        } catch (error) {
+          request.log.error(
+            { error, from: From },
+            "conversation.drive.save.failed"
+          );
+        }
       }
 
       return reply.send({

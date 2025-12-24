@@ -8,11 +8,13 @@ import { registerRoutes } from "./routes/index.js";
 import type { OpenAIService } from "./services/ai/openai.js";
 import type { TwilioService } from "./services/messaging/twilio.js";
 import type { MessagesHandlerDependencies } from "./handlers/messages.js";
+import type { ConversationDriveService } from "./services/messaging/conversationDrive.js";
 import { logger } from "./logger.js";
 
 export interface AppDependencies {
   openAIService: OpenAIService;
   twilioService: TwilioService;
+  conversationDriveService?: ConversationDriveService;
   messages?: Partial<MessagesHandlerDependencies>;
 }
 
@@ -21,6 +23,7 @@ export type AppInstance = FastifyInstance<RawServerDefault>;
 export async function buildApp({
   openAIService,
   twilioService,
+  conversationDriveService,
   messages,
 }: AppDependencies): Promise<AppInstance> {
   const loggerInstance =
@@ -36,6 +39,9 @@ export async function buildApp({
 
   await app.register(formbody);
 
+  const resolvedConversationDriveService =
+    messages?.conversationDriveService ?? conversationDriveService;
+
   const messagesDependencies: MessagesHandlerDependencies = {
     generateSimpleResponse:
       messages?.generateSimpleResponse ??
@@ -48,6 +54,9 @@ export async function buildApp({
       messages?.getConversationHistory ??
       ((conversationId) =>
         openAIService.getConversationHistory(conversationId)),
+    ...(resolvedConversationDriveService !== undefined && {
+      conversationDriveService: resolvedConversationDriveService,
+    }),
   };
 
   await app.register(async (instance) => {

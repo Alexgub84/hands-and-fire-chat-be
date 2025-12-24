@@ -25,8 +25,8 @@
     "db:start": "bash scripts/run-local-chroma.sh",
     "db:stop": "docker stop chroma-local",
     "db:logs": "docker logs -f chroma-local",
-    "test:openai-db": "tsx scripts/test-openai-with-db.ts",
-    "test:openai-single": "tsx scripts/test-openai-single.ts"
+    "test:openai-db": "RUN_OPENAI_PROD_TEST=true NODE_ENV=test vitest run tests/prod/openaiWithDb.prod.test.ts",
+    "test:openai-single": "RUN_OPENAI_PROD_TEST=true NODE_ENV=test vitest run tests/prod/openai.prod.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.679.0",
