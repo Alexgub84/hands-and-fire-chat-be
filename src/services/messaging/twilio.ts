@@ -46,6 +46,8 @@ export function createTwilioService(
           to,
           messageSid: message.sid,
           messagingServiceSid: messageParams.messagingServiceSid,
+          explanation:
+            "WhatsApp message successfully sent via Twilio API. Message SID can be used for tracking and debugging.",
         },
         "twilio.message.sent"
       );
@@ -58,18 +60,59 @@ export function createTwilioService(
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
+      const twilioError = error as {
+        code?: number;
+        status?: number;
+        message?: string;
+        moreInfo?: string;
+      };
+
+      const errorCode = twilioError.code ?? twilioError.status;
+      const isRateLimitError = errorCode === 20429 || errorCode === 429;
+      const isInvalidNumberError =
+        errorCode === 21211 ||
+        errorMessage.includes("Invalid 'To' Phone Number") ||
+        errorMessage.includes("not a valid phone number");
+      const isUnauthorizedError =
+        errorCode === 20003 || errorCode === 401 || errorCode === 403;
+      const isUnreachableError =
+        errorCode === 21608 ||
+        errorMessage.includes("unreachable") ||
+        errorMessage.includes("not reachable");
+
       serviceLogger.error(
         {
           to,
           messagingServiceSid,
           error: errorMessage,
+          errorCode,
+          isRateLimit: isRateLimitError,
+          isInvalidNumber: isInvalidNumberError,
+          isUnauthorized: isUnauthorizedError,
+          isUnreachable: isUnreachableError,
+          moreInfo: twilioError.moreInfo,
+          stack: error instanceof Error ? error.stack : undefined,
+          explanation:
+            "Twilio API call failed to send WhatsApp message. Error type detected (rate limit, invalid number, auth, or unreachable) for appropriate user-friendly error message. Returning failure result to handler.",
         },
         "twilio.message.failed"
       );
 
+      let userFriendlyError = errorMessage;
+      if (isRateLimitError) {
+        userFriendlyError = "Rate limit exceeded. Please try again later.";
+      } else if (isInvalidNumberError) {
+        userFriendlyError = `Invalid phone number: ${to}`;
+      } else if (isUnauthorizedError) {
+        userFriendlyError =
+          "Twilio authentication failed. Please check credentials.";
+      } else if (isUnreachableError) {
+        userFriendlyError = `Phone number ${to} is not reachable.`;
+      }
+
       return {
         success: false,
-        error: errorMessage,
+        error: userFriendlyError,
       };
     }
   };

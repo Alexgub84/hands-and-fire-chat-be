@@ -25,7 +25,7 @@ interface CreateOpenAIEmbeddingFunctionOptions {
   embedTexts?: (texts: string[]) => Promise<EmbeddingVector[]>;
 }
 
-function createEmbedder(
+function createEmbeddingFunction(
   apiKey: string,
   model: string
 ): (texts: string[]) => Promise<EmbeddingVector[]> {
@@ -53,7 +53,8 @@ export function createOpenAIEmbeddingFunction(
 ): ChromaEmbeddingFunction {
   const { openai_api_key, model, embedTexts } = options;
 
-  const embedTextsFn = embedTexts ?? createEmbedder(openai_api_key, model);
+  const embedTextsFn =
+    embedTexts ?? createEmbeddingFunction(openai_api_key, model);
 
   return {
     name: "openai-api",
@@ -137,20 +138,52 @@ export function createKnowledgeBaseService(
   const embedTexts =
     options.embedTexts ??
     (async (texts: string[]): Promise<EmbeddingVector[]> => {
-      const response = await openaiClient.embeddings.create({
-        model: embeddingModel,
-        input: texts,
-      });
+      try {
+        const response = await openaiClient.embeddings.create({
+          model: embeddingModel,
+          input: texts,
+        });
 
-      return response.data.map((item, index) => {
-        const embedding = item.embedding;
-        if (!isEmbeddingVector(embedding)) {
+        return response.data.map((item, index) => {
+          const embedding = item.embedding;
+          if (!isEmbeddingVector(embedding)) {
+            logError("openai.embedding.invalid", {
+              index,
+              embeddingType: typeof embedding,
+              explanation:
+                "Invalid embedding vector received from OpenAI API. Expected array of numbers but received different type. This indicates an API response format issue.",
+            });
+            throw new Error(
+              `Invalid embedding vector received from OpenAI at index ${index}`
+            );
+          }
+          return embedding;
+        });
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const isRateLimitError =
+          errorMessage.includes("rate_limit") ||
+          errorMessage.includes("429") ||
+          (error instanceof OpenAI.APIError && error.status === 429);
+
+        logError("openai.embedding.api.failed", {
+          error: errorMessage,
+          isRateLimit: isRateLimitError,
+          statusCode:
+            error instanceof OpenAI.APIError ? error.status : undefined,
+          inputLength: texts.length,
+          explanation:
+            "OpenAI embedding API call failed. Rate limit errors indicate too many requests. Error will be re-thrown with user-friendly message to prevent knowledge base context building.",
+        });
+
+        if (isRateLimitError) {
           throw new Error(
-            `Invalid embedding vector received from OpenAI at index ${index}`
+            "OpenAI embedding API rate limit exceeded. Please try again later."
           );
         }
-        return embedding;
-      });
+        throw new Error(`OpenAI embedding API error: ${errorMessage}`);
+      }
     });
 
   const chromaEmbeddingFunction = createOpenAIEmbeddingFunction({
@@ -159,7 +192,7 @@ export function createKnowledgeBaseService(
     embedTexts,
   });
 
-  const resolveChromaCollection = async (): Promise<Collection | null> => {
+  const getOrCreateChromaCollection = async (): Promise<Collection | null> => {
     if (!chromaCollectionPromise) {
       chromaCollectionPromise = chromaClient
         .getOrCreateCollection({
@@ -168,9 +201,21 @@ export function createKnowledgeBaseService(
         })
         .catch((error) => {
           chromaCollectionPromise = null;
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const isConnectionError =
+            errorMessage.includes("ECONNREFUSED") ||
+            errorMessage.includes("ENOTFOUND") ||
+            errorMessage.includes("timeout") ||
+            errorMessage.includes("connection");
+
           logError("chroma.collection.resolve.failed", {
             collection: chromaCollection,
-            error: error instanceof Error ? error.message : error,
+            error: errorMessage,
+            isConnectionError,
+            stack: error instanceof Error ? error.stack : undefined,
+            explanation:
+              "Failed to resolve or create ChromaDB collection. Connection errors indicate ChromaDB server is unreachable. Collection promise reset to allow retry on next access.",
           });
           return Promise.reject(error);
         });
@@ -178,7 +223,15 @@ export function createKnowledgeBaseService(
 
     try {
       return await chromaCollectionPromise;
-    } catch {
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logWarn("chroma.collection.resolve.retry.failed", {
+        collection: chromaCollection,
+        error: errorMessage,
+        explanation:
+          "Retry to resolve ChromaDB collection failed. Returning null to allow graceful degradation - knowledge base queries will be skipped.",
+      });
       return null;
     }
   };
@@ -186,22 +239,31 @@ export function createKnowledgeBaseService(
   void (async () => {
     try {
       await chromaClient.heartbeat();
-      logInfo("chroma.heartbeat.success");
+      logInfo("chroma.heartbeat.success", {
+        explanation:
+          "ChromaDB heartbeat check succeeded, indicating database connection is healthy and ready for queries.",
+      });
     } catch (error) {
       logError("chroma.heartbeat.failed", {
         error: error instanceof Error ? error.message : error,
+        explanation:
+          "ChromaDB heartbeat check failed during initialization. Database may be unreachable or misconfigured. Service will continue but knowledge base queries may fail.",
       });
     }
 
     try {
-      await resolveChromaCollection();
-      logInfo("chroma.collection.ready", { collection: chromaCollection });
+      await getOrCreateChromaCollection();
+      logInfo("chroma.collection.ready", {
+        collection: chromaCollection,
+        explanation:
+          "ChromaDB collection successfully resolved and ready for queries. Knowledge base service is operational.",
+      });
     } catch {
       // Ignore initialization errors
     }
   })();
 
-  const truncate = (value: string, limit: number): string => {
+  const truncateText = (value: string, limit: number): string => {
     if (value.length <= limit) {
       return value;
     }
@@ -213,9 +275,27 @@ export function createKnowledgeBaseService(
     conversationId: string,
     userMessage: string
   ): Promise<KnowledgeContext | null> => {
-    const collection = await resolveChromaCollection();
+    let collection: Collection | null = null;
+    try {
+      collection = await getOrCreateChromaCollection();
+    } catch (error) {
+      logError("chroma.collection.access.failed", {
+        conversationId,
+        collection: chromaCollection,
+        error: error instanceof Error ? error.message : String(error),
+        explanation:
+          "Failed to access ChromaDB collection when building knowledge context. Returning null to allow request to proceed without knowledge base context.",
+      });
+      return null;
+    }
 
     if (!collection) {
+      logWarn("chroma.collection.unavailable", {
+        conversationId,
+        collection: chromaCollection,
+        explanation:
+          "ChromaDB collection is unavailable (null). This may be due to connection issues or collection not existing. Returning null to allow request to proceed without knowledge base context.",
+      });
       return null;
     }
 
@@ -223,9 +303,14 @@ export function createKnowledgeBaseService(
     try {
       queryEmbeddings = await embedTexts([userMessage]);
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       logWarn("openai.embedding.failed", {
         conversationId,
-        error: error instanceof Error ? error.message : error,
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        explanation:
+          "Failed to generate embeddings for user message. This prevents knowledge base search. Returning null to allow request to proceed without knowledge context.",
       });
       return null;
     }
@@ -233,6 +318,8 @@ export function createKnowledgeBaseService(
     if (!Array.isArray(queryEmbeddings) || queryEmbeddings.length === 0) {
       logWarn("openai.embedding.empty", {
         conversationId,
+        explanation:
+          "Embedding API returned empty or invalid result. Cannot perform knowledge base search without embeddings. Returning null to allow request to proceed without knowledge context.",
       });
       return null;
     }
@@ -290,6 +377,8 @@ export function createKnowledgeBaseService(
               title: item.title,
               similarity: item.similarity,
               threshold: chromaSimilarityThreshold,
+              explanation:
+                "Knowledge base result filtered out because similarity score is below threshold. This ensures only highly relevant context is included in the response.",
             });
           }
           return passesThreshold;
@@ -311,6 +400,8 @@ export function createKnowledgeBaseService(
             maxSimilarity,
             totalResults: documents.length,
             requestedResults: chromaMaxResults,
+            explanation:
+              "All knowledge base results filtered out due to low similarity scores. Falling back to top results regardless of threshold to provide some context.",
           });
 
           const topResults = documents
@@ -350,6 +441,8 @@ export function createKnowledgeBaseService(
             threshold: chromaSimilarityThreshold,
             maxSimilarity,
             requestedResults: chromaMaxResults,
+            explanation:
+              "No knowledge base results found or all results below similarity threshold. Returning null - request will proceed without knowledge context.",
           });
           return null;
         }
@@ -366,7 +459,7 @@ export function createKnowledgeBaseService(
             : "";
 
         entries.push(
-          `- (${item.title} | source: ${item.source}${scoreFragment}) ${truncate(
+          `- (${item.title} | source: ${item.source}${scoreFragment}          ) ${truncateText(
             item.document,
             perDocumentLimit
           )}`
@@ -380,6 +473,8 @@ export function createKnowledgeBaseService(
         collection: chromaCollection,
         results: entries.length,
         threshold: chromaSimilarityThreshold,
+        explanation:
+          "Successfully queried knowledge base and built context with relevant entries. Context will be included in OpenAI API request to improve answer accuracy.",
       });
 
       return {
@@ -390,10 +485,22 @@ export function createKnowledgeBaseService(
         },
       };
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const isConnectionError =
+        errorMessage.includes("ECONNREFUSED") ||
+        errorMessage.includes("ENOTFOUND") ||
+        errorMessage.includes("timeout") ||
+        errorMessage.includes("connection");
+
       logError("chroma.query.failed", {
         conversationId,
         collection: chromaCollection,
-        error: error instanceof Error ? error.message : error,
+        error: errorMessage,
+        isConnectionError,
+        stack: error instanceof Error ? error.stack : undefined,
+        explanation:
+          "Failed to query ChromaDB knowledge base. Connection errors indicate database is unreachable. Returning null to allow request to proceed without knowledge context.",
       });
       return null;
     }

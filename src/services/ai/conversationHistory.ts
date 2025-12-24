@@ -18,7 +18,7 @@ export interface ConversationHistoryServiceOptions {
 }
 
 export interface ConversationHistoryService {
-  ensureConversation: (conversationId: string) => ChatMessage[];
+  getOrCreateConversation: (conversationId: string) => ChatMessage[];
   addMessage: (conversationId: string, message: ChatMessage) => void;
   resetConversation: (conversationId: string) => void;
   countTokens: (messages: ChatMessage[]) => number;
@@ -36,7 +36,7 @@ export function createConversationHistoryService(
 
   const conversations = new Map<string, ChatMessage[]>();
 
-  const ensureConversation = (conversationId: string): ChatMessage[] => {
+  const getOrCreateConversation = (conversationId: string): ChatMessage[] => {
     if (sessionManager) {
       if (sessionManager.isSessionExpired(conversationId)) {
         serviceLogger.info(
@@ -67,11 +67,11 @@ export function createConversationHistoryService(
   };
 
   const getMessages = (conversationId: string): ChatMessage[] => {
-    return ensureConversation(conversationId);
+    return getOrCreateConversation(conversationId);
   };
 
   const addMessage = (conversationId: string, message: ChatMessage) => {
-    const messages = ensureConversation(conversationId);
+    const messages = getOrCreateConversation(conversationId);
     messages.push(message);
   };
 
@@ -133,7 +133,7 @@ export function createConversationHistoryService(
   };
 
   return {
-    ensureConversation,
+    getOrCreateConversation,
     addMessage,
     resetConversation,
     countTokens,

@@ -47,7 +47,7 @@ export function buildConversationCsvContent(
     ]),
   ];
 
-  return toCsv(rows);
+  return convertRowsToCsv(rows);
 }
 
 export async function saveConversationCsv(
@@ -58,7 +58,7 @@ export async function saveConversationCsv(
   const environment = dependencies.environment ?? env;
 
   try {
-    const resolveDrive = (): drive_v3.Drive => {
+    const getOrCreateDriveClient = (): drive_v3.Drive => {
       if (dependencies.drive) {
         return dependencies.drive;
       }
@@ -78,11 +78,11 @@ export async function saveConversationCsv(
       });
     };
 
-    const drive = resolveDrive();
+    const drive = getOrCreateDriveClient();
     const createFile = dependencies.createDriveCsvFile ?? createCsvFile;
     const fileName =
       options.fileName ??
-      `${options.conversationId}-${resolveTimestamp(dependencies)}`;
+      `${options.conversationId}-${generateCurrentTimestamp(dependencies)}`;
 
     const csvContent = buildConversationCsvContent(
       options.conversationId,
@@ -118,14 +118,14 @@ export async function saveConversationCsv(
   }
 }
 
-function resolveTimestamp({
+function generateCurrentTimestamp({
   now,
 }: Pick<SaveConversationCsvDependencies, "now">): string {
   const current = now ? now() : new Date();
   return current.toISOString();
 }
 
-function toCsv(rows: string[][]): string {
+function convertRowsToCsv(rows: string[][]): string {
   return rows.map((columns) => columns.map(escapeCsv).join(",")).join("\n");
 }
 

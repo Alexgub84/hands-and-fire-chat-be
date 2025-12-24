@@ -35,9 +35,11 @@ export function normalizeAssistantReply(
       continue;
     }
 
-    const resolved = resolveUrl(link, candidateUrls);
+    const resolved = resolveMarkdownLinkUrl(link, candidateUrls);
 
-    const replacement = resolved ? formatLink(label, resolved) : label.trim();
+    const replacement = resolved
+      ? formatLinkForWhatsApp(label, resolved)
+      : label.trim();
 
     normalized = normalized.replace(fullMatch, replacement);
   }
@@ -45,7 +47,10 @@ export function normalizeAssistantReply(
   return normalized;
 }
 
-function resolveUrl(link: string, candidates: string[]): string | null {
+function resolveMarkdownLinkUrl(
+  link: string,
+  candidates: string[]
+): string | null {
   const trimmed = link.trim();
 
   if (trimmed.length === 0 || trimmed === "#" || trimmed.startsWith("#")) {
@@ -68,7 +73,7 @@ function resolveUrl(link: string, candidates: string[]): string | null {
   return null;
 }
 
-function formatLink(label: string, url: string): string {
+function formatLinkForWhatsApp(label: string, url: string): string {
   const cleanedLabel = label
     .trim()
     .replace(/[\s\n]+/g, " ")

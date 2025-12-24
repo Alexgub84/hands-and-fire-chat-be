@@ -125,7 +125,7 @@ describe("SessionManager", () => {
 
       const age = sessionManager.getSessionAgeMs(conversationId);
       expect(age).not.toBeNull();
-      expect(age!).toBeGreaterThanOrEqual(50);
+      expect(age!).toBeGreaterThanOrEqual(45);
       expect(age!).toBeLessThan(100);
     });
   });

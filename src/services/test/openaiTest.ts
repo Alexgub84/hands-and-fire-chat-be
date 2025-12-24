@@ -58,22 +58,25 @@ export function wrapRTL(text: string): string {
   return text;
 }
 
-function normalizeText(text: string): string {
+function normalizeTextForComparison(text: string): string {
   return text.toLowerCase().replace(/[\s\-_]/g, "");
 }
 
-function checkStringPresence(text: string, searchStrings: string[]): boolean[] {
+function checkStringsInText(text: string, searchStrings: string[]): boolean[] {
   return searchStrings.map((searchStr) => {
-    const normalizedText = normalizeText(text);
-    const normalizedSearch = normalizeText(searchStr);
+    const normalizedText = normalizeTextForComparison(text);
+    const normalizedSearch = normalizeTextForComparison(searchStr);
     return normalizedText.includes(normalizedSearch);
   });
 }
 
-function checkStringAbsence(text: string, searchStrings: string[]): boolean[] {
+function checkStringsNotInText(
+  text: string,
+  searchStrings: string[]
+): boolean[] {
   return searchStrings.map((searchStr) => {
-    const normalizedText = normalizeText(text);
-    const normalizedSearch = normalizeText(searchStr);
+    const normalizedText = normalizeTextForComparison(text);
+    const normalizedSearch = normalizeTextForComparison(searchStr);
     return !normalizedText.includes(normalizedSearch);
   });
 }
@@ -264,15 +267,15 @@ export async function testSingleQuestion(
     );
     const durationMs = Date.now() - startTime;
 
-    const mustContainChecks = checkStringPresence(
+    const mustContainChecks = checkStringsInText(
       openaiResult.response,
       expectedAnswer.mustContain
     );
-    const shouldContainChecks = checkStringPresence(
+    const shouldContainChecks = checkStringsInText(
       openaiResult.response,
       expectedAnswer.shouldContain
     );
-    const shouldNotContainChecks = checkStringAbsence(
+    const shouldNotContainChecks = checkStringsNotInText(
       openaiResult.response,
       expectedAnswer.shouldNotContain
     );
@@ -380,14 +383,14 @@ export function printTestResult(result: TestResult): void {
   if (!result.passed) {
     console.log("\n❌ Missing Required Content:");
     result.expectedAnswer.mustContain.forEach((str) => {
-      const check = checkStringPresence(result.actualAnswer, [str])[0];
+      const check = checkStringsInText(result.actualAnswer, [str])[0];
       if (!check) {
         console.log(`  - ${wrapRTL(`"${str}"`)}`);
       }
     });
     console.log("\n❌ Found Prohibited Content:");
     result.expectedAnswer.shouldNotContain.forEach((str) => {
-      const check = checkStringAbsence(result.actualAnswer, [str])[0];
+      const check = checkStringsNotInText(result.actualAnswer, [str])[0];
       if (!check) {
         console.log(`  - ${wrapRTL(`"${str}"`)}`);
       }
