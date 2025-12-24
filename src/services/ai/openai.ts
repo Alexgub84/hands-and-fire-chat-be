@@ -50,6 +50,11 @@ export interface GenerateReplyResult {
     userTokens: number;
     durationMs: number;
   };
+  knowledgeContext: {
+    applied: boolean;
+    chunksUsed: number;
+    entries: KnowledgeEntry[];
+  } | null;
 }
 
 export interface OpenAIService {
@@ -154,6 +159,7 @@ export function createOpenAIService(
         userTokens: userTokens,
         durationMs: 0,
       },
+      knowledgeContext: null,
     };
   }
 
@@ -165,104 +171,117 @@ export function createOpenAIService(
       return { messages: requestMessages, applied: false, chunksUsed: 0 };
     }
 
-    // Try with all chunks first
     const originalEntries = [...knowledgeContext.entries];
+    const fullContent =
+      typeof knowledgeContext.message.content === "string"
+        ? knowledgeContext.message.content
+        : "";
 
-    // Helper to build context message with specific number of entries
-    const buildContextMessage = (entries: KnowledgeEntry[]): ChatMessage => {
-      const contextEntries = entries.map((entry) => {
-        const scoreFragment = "";
-        return `- (${entry.title} | source: ${entry.source}${scoreFragment}) ${entry.title}`;
-      });
+    if (!fullContent || originalEntries.length === 0) {
+      return { messages: requestMessages, applied: false, chunksUsed: 0 };
+    }
 
-      const contextString = `Knowledge base context:\n${contextEntries.join("\n")}`;
+    const lines = fullContent.split("\n").filter((line) => line.trim());
+    const contextLines = lines.slice(1);
+
+    const extractChunks = (numChunks: number): string => {
+      const chunkLines: string[] = [];
+      let currentChunk = 0;
+
+      for (const line of contextLines) {
+        if (line.startsWith("- (")) {
+          if (currentChunk >= numChunks) break;
+          currentChunk++;
+        }
+        if (currentChunk <= numChunks) {
+          chunkLines.push(line);
+        }
+      }
+
+      return lines[0]
+        ? `${lines[0]}\n${chunkLines.join("\n")}`
+        : chunkLines.join("\n");
+    };
+
+    const buildContextMessage = (content: string): ChatMessage => {
       return {
         role: "system",
-        content: contextString,
+        content,
       } as ChatMessage;
     };
 
-    // Try with all chunks (5)
-    if (originalEntries.length > 0) {
-      const fullContext = buildContextMessage(originalEntries);
-      const messagesWithFullKnowledge = [...requestMessages];
-      messagesWithFullKnowledge.splice(
-        messagesWithFullKnowledge.length - 1,
+    const fullContext = buildContextMessage(fullContent);
+    const messagesWithFullKnowledge = [...requestMessages];
+    messagesWithFullKnowledge.splice(
+      messagesWithFullKnowledge.length - 1,
+      0,
+      fullContext
+    );
+
+    if (
+      conversationHistory.countTokens(messagesWithFullKnowledge) <= tokenLimit
+    ) {
+      return {
+        messages: messagesWithFullKnowledge,
+        applied: true,
+        chunksUsed: originalEntries.length,
+      };
+    }
+
+    if (originalEntries.length > 3) {
+      const reducedContent = extractChunks(3);
+      const reducedContext = buildContextMessage(reducedContent);
+      const messagesWithReducedKnowledge = [...requestMessages];
+      messagesWithReducedKnowledge.splice(
+        messagesWithReducedKnowledge.length - 1,
         0,
-        fullContext
+        reducedContext
       );
 
       if (
-        conversationHistory.countTokens(messagesWithFullKnowledge) <= tokenLimit
+        conversationHistory.countTokens(messagesWithReducedKnowledge) <=
+        tokenLimit
       ) {
+        logWarn("chroma.context.degraded", {
+          reason: "token_limit",
+          originalChunks: originalEntries.length,
+          reducedChunks: 3,
+        });
         return {
-          messages: messagesWithFullKnowledge,
+          messages: messagesWithReducedKnowledge,
           applied: true,
-          chunksUsed: originalEntries.length,
+          chunksUsed: 3,
         };
-      }
-
-      // Try with 3 chunks (most relevant)
-      if (originalEntries.length > 3) {
-        const reducedEntries = originalEntries.slice(0, 3);
-        const reducedContext = buildContextMessage(reducedEntries);
-        const messagesWithReducedKnowledge = [...requestMessages];
-        messagesWithReducedKnowledge.splice(
-          messagesWithReducedKnowledge.length - 1,
-          0,
-          reducedContext
-        );
-
-        if (
-          conversationHistory.countTokens(messagesWithReducedKnowledge) <=
-          tokenLimit
-        ) {
-          logWarn("chroma.context.degraded", {
-            reason: "token_limit",
-            originalChunks: originalEntries.length,
-            reducedChunks: 3,
-          });
-          return {
-            messages: messagesWithReducedKnowledge,
-            applied: true,
-            chunksUsed: 3,
-          };
-        }
-      }
-
-      // Try with 1 chunk (most relevant)
-      if (originalEntries.length > 1) {
-        const firstEntry = originalEntries[0];
-        if (firstEntry) {
-          const singleEntry = [firstEntry];
-          const singleContext = buildContextMessage(singleEntry);
-          const messagesWithSingleKnowledge = [...requestMessages];
-          messagesWithSingleKnowledge.splice(
-            messagesWithSingleKnowledge.length - 1,
-            0,
-            singleContext
-          );
-
-          if (
-            conversationHistory.countTokens(messagesWithSingleKnowledge) <=
-            tokenLimit
-          ) {
-            logWarn("chroma.context.degraded", {
-              reason: "token_limit",
-              originalChunks: originalEntries.length,
-              reducedChunks: 1,
-            });
-            return {
-              messages: messagesWithSingleKnowledge,
-              applied: true,
-              chunksUsed: 1,
-            };
-          }
-        }
       }
     }
 
-    // All KB context dropped
+    if (originalEntries.length > 1) {
+      const singleContent = extractChunks(1);
+      const singleContext = buildContextMessage(singleContent);
+      const messagesWithSingleKnowledge = [...requestMessages];
+      messagesWithSingleKnowledge.splice(
+        messagesWithSingleKnowledge.length - 1,
+        0,
+        singleContext
+      );
+
+      if (
+        conversationHistory.countTokens(messagesWithSingleKnowledge) <=
+        tokenLimit
+      ) {
+        logWarn("chroma.context.degraded", {
+          reason: "token_limit",
+          originalChunks: originalEntries.length,
+          reducedChunks: 1,
+        });
+        return {
+          messages: messagesWithSingleKnowledge,
+          applied: true,
+          chunksUsed: 1,
+        };
+      }
+    }
+
     logWarn("chroma.context.dropped_all", {
       reason: "token_limit",
       originalChunks: originalEntries.length,
@@ -457,6 +476,14 @@ export function createOpenAIService(
         userTokens: tokenBreakdown.userTokens,
         durationMs: Date.now() - startedAt,
       },
+      knowledgeContext:
+        verifiedKnowledgeApplied && knowledgeContext
+          ? {
+              applied: true,
+              chunksUsed,
+              entries: knowledgeContext.entries,
+            }
+          : null,
     };
   };
 

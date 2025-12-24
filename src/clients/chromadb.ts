@@ -1,4 +1,8 @@
-import { CloudClient, type ChromaClient } from "chromadb";
+import {
+  CloudClient,
+  ChromaClient,
+  type ChromaClient as ChromaClientType,
+} from "chromadb";
 
 export interface CreateChromaClientOptions {
   apiKey: string;
@@ -6,8 +10,24 @@ export interface CreateChromaClientOptions {
   database: string;
 }
 
+export interface CreateLocalChromaClientOptions {
+  host: string;
+  port: number;
+  ssl?: boolean;
+}
+
 export function createChromaClient(
   options: CreateChromaClientOptions
-): ChromaClient {
+): ChromaClientType {
   return new CloudClient(options);
+}
+
+export function createLocalChromaClient(
+  options: CreateLocalChromaClientOptions
+): ChromaClientType {
+  return new ChromaClient({
+    host: options.host,
+    port: options.port,
+    ssl: options.ssl ?? false,
+  });
 }

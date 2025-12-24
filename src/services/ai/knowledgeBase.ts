@@ -302,14 +302,57 @@ export function createKnowledgeBaseService(
                 ...distances.map((d) => (typeof d === "number" ? 1 - d : 0))
               )
             : null;
-        logInfo("chroma.query.below_threshold", {
-          conversationId,
-          collection: chromaCollection,
-          threshold: chromaSimilarityThreshold,
-          maxSimilarity,
-          requestedResults: chromaMaxResults,
-        });
-        return null;
+
+        if (documents.length > 0) {
+          logWarn("chroma.query.all_filtered", {
+            conversationId,
+            collection: chromaCollection,
+            threshold: chromaSimilarityThreshold,
+            maxSimilarity,
+            totalResults: documents.length,
+            requestedResults: chromaMaxResults,
+          });
+
+          const topResults = documents
+            .map((doc, index) => {
+              const metadata =
+                (Array.isArray(metadatas) ? metadatas[index] : null) ?? {};
+              const title =
+                metadata && typeof metadata.title === "string"
+                  ? metadata.title
+                  : `snippet-${index + 1}`;
+              const source =
+                metadata && typeof metadata.source === "string"
+                  ? metadata.source
+                  : "unknown";
+              const distance = Array.isArray(distances)
+                ? distances[index]
+                : null;
+              const similarity =
+                typeof distance === "number" ? 1 - distance : null;
+
+              return {
+                document: doc,
+                metadata,
+                title,
+                source,
+                distance,
+                similarity,
+              };
+            })
+            .slice(0, chromaMaxResults);
+
+          filteredResults.push(...topResults);
+        } else {
+          logInfo("chroma.query.below_threshold", {
+            conversationId,
+            collection: chromaCollection,
+            threshold: chromaSimilarityThreshold,
+            maxSimilarity,
+            requestedResults: chromaMaxResults,
+          });
+          return null;
+        }
       }
 
       filteredResults.forEach((item) => {

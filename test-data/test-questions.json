@@ -1,0 +1,126 @@
+{
+  "testCases": [
+    {
+      "id": "workshop-types",
+      "question": "אילו סדנאות יש לכם?",
+      "expectedAnswer": {
+        "mustContain": ["סדנת", "אובניים", "ליקוט", "הטבעות"],
+        "shouldContain": ["סוגים", "סדנאות", "קרמיקה"],
+        "shouldNotContain": ["אין לי מידע", "לא יודעת"]
+      },
+      "metadata": {
+        "category": "workshop_types",
+        "type": "information"
+      }
+    },
+    {
+      "id": "studio-location",
+      "question": "איפה ממוקם הסטודיו שלכם?",
+      "expectedAnswer": {
+        "mustContain": ["כתובת", "מיקום", "הגעה"],
+        "shouldContain": ["סטודיו", "Hands and Fire"],
+        "shouldNotContain": ["אין לי מידע", "לא יודעת"]
+      },
+      "metadata": {
+        "category": "location",
+        "type": "information"
+      }
+    },
+    {
+      "id": "workshop-includes",
+      "question": "מה כוללת סדנת הקרמיקה?",
+      "expectedAnswer": {
+        "mustContain": ["כוללת", "חומרים", "הדרכה", "אפייה"],
+        "shouldContain": ["סדנה", "קרמיקה", "מה כוללת"],
+        "shouldNotContain": ["אין לי מידע", "לא יודעת"]
+      },
+      "metadata": {
+        "category": "workshop_details",
+        "type": "information"
+      }
+    },
+    {
+      "id": "pricing-4-people-weekday",
+      "question": "כמה עולה סדנה לארבעה אנשים ביום ראשון?",
+      "expectedAnswer": {
+        "mustContain": ["מחיר", "4", "משתתפים", "ראשון"],
+        "shouldContain": ["סדנה", "מחיר מדויק"],
+        "shouldNotContain": ["אין לי מידע", "לא יודעת", "בדיקה"]
+      },
+      "metadata": {
+        "category": "pricing",
+        "participants": 4,
+        "day": "sunday",
+        "type": "workshop"
+      }
+    },
+    {
+      "id": "same-day-booking",
+      "question": "אפשר להגיע היום לסדנה?",
+      "expectedAnswer": {
+        "mustContain": ["היום", "בדיקה", "צוות"],
+        "shouldContain": ["סדנה", "זמינות"],
+        "shouldNotContain": ["כן", "בטח", "אין בעיה"]
+      },
+      "metadata": {
+        "category": "availability",
+        "type": "same_day",
+        "expectedFallback": true
+      }
+    },
+    {
+      "id": "shabbat-booking",
+      "question": "אפשר לקבוע סדנה בשבת?",
+      "expectedAnswer": {
+        "mustContain": ["שבת", "בדיקה", "צוות"],
+        "shouldContain": ["סדנה", "זמינות"],
+        "shouldNotContain": ["כן", "בטח", "אין בעיה"]
+      },
+      "metadata": {
+        "category": "availability",
+        "type": "shabbat",
+        "expectedFallback": true
+      }
+    },
+    {
+      "id": "workshop-vs-course",
+      "question": "מה ההבדל בין סדנה לחוג?",
+      "expectedAnswer": {
+        "mustContain": ["סדנה", "חוג", "הבדל", "חד-פעמי", "שבועי"],
+        "shouldContain": ["סוגים", "פעילויות"],
+        "shouldNotContain": ["אין לי מידע", "לא יודעת"]
+      },
+      "metadata": {
+        "category": "general_info",
+        "type": "comparison"
+      }
+    },
+    {
+      "id": "private-workshop-policy",
+      "question": "האפשר להצטרף לקבוצה פתוחה?",
+      "expectedAnswer": {
+        "mustContain": ["פרטיות", "זוג", "מינימום", "לא", "קבוצה פתוחה"],
+        "shouldContain": ["מדיניות", "סדנאות"],
+        "shouldNotContain": ["כן", "בטח", "אין בעיה"]
+      },
+      "metadata": {
+        "category": "policy",
+        "type": "private_workshops"
+      }
+    },
+    {
+      "id": "collection-policy",
+      "question": "מתי אפשר לאסוף את הפריטים מהסדנה?",
+      "expectedAnswer": {
+        "mustContain": ["איסוף", "זמן", "תאריך", "שבועיים"],
+        "shouldContain": ["פריטים", "סדנה"],
+        "shouldNotContain": ["אין לי מידע", "לא יודעת"]
+      },
+      "metadata": {
+        "category": "policy",
+        "type": "collection"
+      }
+    }
+  ]
+}
+

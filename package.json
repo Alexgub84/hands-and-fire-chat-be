@@ -21,7 +21,12 @@
     "embeddings:dev": "tsx embeddings/src/index.ts",
     "embeddings:drop-local-db": "npm run embeddings:build && node embeddings/dist/dropLocalDb.js",
     "embeddings:drop-local-db:dev": "tsx embeddings/src/dropLocalDb.ts",
-    "embeddings:docker-up": "docker run -p 8000:8000 chromadb/chroma"
+    "embeddings:docker-up": "docker run -p 8000:8000 chromadb/chroma",
+    "db:start": "bash scripts/run-local-chroma.sh",
+    "db:stop": "docker stop chroma-local",
+    "db:logs": "docker logs -f chroma-local",
+    "test:openai-db": "tsx scripts/test-openai-with-db.ts",
+    "test:openai-single": "tsx scripts/test-openai-single.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.679.0",
@@ -54,7 +59,7 @@
     "vitest": "^2.1.1"
   },
   "lint-staged": {
-    "*.ts": [
+    "src/**/*.ts": [
       "eslint --fix",
       "prettier --write"
     ]

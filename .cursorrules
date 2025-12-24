@@ -52,6 +52,12 @@ src/
 - Test behavior, not implementation
 - The assistant should run `npm run build`,  `npm run lint` and `npm test` automatically after changes without asking for permission
 
+# Command Execution
+- When running npm scripts or terminal commands, never prefix them with colon (`:`)
+- Use direct command syntax: `npm run <script>` not `:npm run <script>`
+- Use direct command syntax: `npm test` not `:npm test`
+- Use direct command syntax: `npm run build` not `:npm run build`
+
 # REST API Design
 - Simple REST conventions: POST /messages/send, GET /messages/health
 - Always return JSON with success/error structure

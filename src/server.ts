@@ -9,7 +9,10 @@ import { createFakeTwilioClient } from "./clients/twilio.fake.js";
 import { createOpenAIService } from "./services/ai/openai.js";
 import { createTwilioService } from "./services/messaging/twilio.js";
 import { defaultSystemPrompt } from "./prompts/system.js";
-import { createChromaClient } from "./clients/chromadb.js";
+import {
+  createChromaClient,
+  createLocalChromaClient,
+} from "./clients/chromadb.js";
 import { createFakeChromaClient } from "./clients/chromadb.fake.js";
 
 function shouldUseFakeClients() {
@@ -43,11 +46,19 @@ export async function startServer(
 
   const chromaClient = useFake
     ? createFakeChromaClient()
-    : createChromaClient({
-        apiKey: env.CHROMA_API_KEY,
-        tenant: env.CHROMA_TENANT,
-        database: env.CHROMA_DATABASE,
-      });
+    : env.CHROMA_URL &&
+        (env.CHROMA_URL.includes("localhost") ||
+          env.CHROMA_URL.includes("127.0.0.1"))
+      ? createLocalChromaClient({
+          host: new URL(env.CHROMA_URL).hostname,
+          port: env.CHROMA_PORT,
+          ssl: new URL(env.CHROMA_URL).protocol === "https:",
+        })
+      : createChromaClient({
+          apiKey: env.CHROMA_API_KEY,
+          tenant: env.CHROMA_TENANT,
+          database: env.CHROMA_DATABASE,
+        });
 
   const openAIService = createOpenAIService({
     client: openAIClient,

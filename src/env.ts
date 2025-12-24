@@ -88,6 +88,20 @@ const envSchema = z
         }
         return parsed;
       }),
+    CHROMA_URL: z
+      .string()
+      .url("CHROMA_URL must be a valid URL")
+      .default("http://localhost"),
+    CHROMA_PORT: z
+      .string()
+      .default("8000")
+      .transform((value) => {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
+          throw new Error("CHROMA_PORT must be between 1 and 65535");
+        }
+        return parsed;
+      }),
     GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
     GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional(),
     GOOGLE_DRIVE_FOLDER_ID: z.string().optional(),
@@ -157,6 +171,14 @@ function logEnvironmentDebug(): void {
   envLogger.debug(
     { collection: process.env.CHROMA_COLLECTION ?? "[not set]" },
     "env.CHROMA_COLLECTION"
+  );
+  envLogger.debug(
+    { url: process.env.CHROMA_URL ?? "[default http://localhost]" },
+    "env.CHROMA_URL"
+  );
+  envLogger.debug(
+    { port: process.env.CHROMA_PORT ?? "[default 8000]" },
+    "env.CHROMA_PORT"
   );
 }
 
