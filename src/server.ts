@@ -14,6 +14,7 @@ import {
   createLocalChromaClient,
 } from "./clients/chromadb.js";
 import { createFakeChromaClient } from "./clients/chromadb.fake.js";
+import { createSessionManager } from "./services/ai/sessionManager.js";
 
 function shouldUseFakeClients() {
   if (typeof process.env.USE_FAKE_CLIENTS === "string") {
@@ -60,6 +61,10 @@ export async function startServer(
           database: env.CHROMA_DATABASE,
         });
 
+  const sessionManager = createSessionManager({
+    sessionTimeoutMs: env.CONVERSATION_SESSION_TIMEOUT_MS,
+  });
+
   const openAIService = createOpenAIService({
     client: openAIClient,
     model: env.OPENAI_MODEL,
@@ -70,6 +75,7 @@ export async function startServer(
     chromaClient,
     chromaCollection: env.CHROMA_COLLECTION,
     chromaSimilarityThreshold: env.CHROMA_SIMILARITY_THRESHOLD,
+    sessionManager,
   });
 
   const twilioOptions: Parameters<typeof createTwilioService>[0] = {

@@ -13,6 +13,7 @@ import {
   type KnowledgeContext,
   type KnowledgeEntry,
 } from "./knowledgeBase.js";
+import type { SessionManager } from "./sessionManager.js";
 import { normalizeAssistantReply } from "../../utils/contentNormalizer.js";
 import {
   fallbackResponse,
@@ -37,6 +38,7 @@ export interface OpenAIServiceOptions {
   conversationHistoryService?: ConversationHistoryService;
   knowledgeBaseService?: KnowledgeBaseService;
   chromaSimilarityThreshold?: number;
+  sessionManager?: SessionManager;
 }
 
 export interface GenerateReplyResult {
@@ -89,6 +91,7 @@ export function createOpenAIService(
       tokenLimit,
       systemPrompt,
       ...(options.tokenizer && { tokenizer: options.tokenizer }),
+      ...(options.sessionManager && { sessionManager: options.sessionManager }),
     });
 
   const knowledgeBase =

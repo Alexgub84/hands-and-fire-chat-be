@@ -102,6 +102,18 @@ const envSchema = z
         }
         return parsed;
       }),
+    CONVERSATION_SESSION_TIMEOUT_MS: z
+      .string()
+      .default("900000")
+      .transform((value) => {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          throw new Error(
+            "CONVERSATION_SESSION_TIMEOUT_MS must be a positive number"
+          );
+        }
+        return parsed;
+      }),
     GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
     GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional(),
     GOOGLE_DRIVE_FOLDER_ID: z.string().optional(),
@@ -179,6 +191,13 @@ function logEnvironmentDebug(): void {
   envLogger.debug(
     { port: process.env.CHROMA_PORT ?? "[default 8000]" },
     "env.CHROMA_PORT"
+  );
+  envLogger.debug(
+    {
+      sessionTimeoutMs:
+        process.env.CONVERSATION_SESSION_TIMEOUT_MS ?? "[default 900000]",
+    },
+    "env.CONVERSATION_SESSION_TIMEOUT_MS"
   );
 }
 

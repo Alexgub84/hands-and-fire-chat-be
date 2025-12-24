@@ -5,6 +5,7 @@ import {
   type TiktokenModel,
 } from "tiktoken";
 import { logger } from "../../logger.js";
+import type { SessionManager } from "./sessionManager.js";
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
@@ -13,6 +14,7 @@ export interface ConversationHistoryServiceOptions {
   tokenLimit: number;
   systemPrompt: string;
   tokenizer?: Pick<Tiktoken, "encode">;
+  sessionManager?: SessionManager;
 }
 
 export interface ConversationHistoryService {
@@ -27,7 +29,7 @@ export interface ConversationHistoryService {
 export function createConversationHistoryService(
   options: ConversationHistoryServiceOptions
 ): ConversationHistoryService {
-  const { model, tokenLimit, systemPrompt } = options;
+  const { model, tokenLimit, systemPrompt, sessionManager } = options;
   const tokenizer =
     options.tokenizer ?? encoding_for_model(model as TiktokenModel);
   const serviceLogger = logger.child({ module: "conversation-history", model });
@@ -35,6 +37,20 @@ export function createConversationHistoryService(
   const conversations = new Map<string, ChatMessage[]>();
 
   const ensureConversation = (conversationId: string): ChatMessage[] => {
+    if (sessionManager) {
+      if (sessionManager.isSessionExpired(conversationId)) {
+        serviceLogger.info(
+          { conversationId },
+          "conversation.session.expired.resetting"
+        );
+        resetConversation(conversationId);
+        sessionManager.resetSession(conversationId);
+        sessionManager.updateActivity(conversationId);
+      } else {
+        sessionManager.updateActivity(conversationId);
+      }
+    }
+
     const existing = conversations.get(conversationId);
     if (existing) {
       return existing;
@@ -66,6 +82,9 @@ export function createConversationHistoryService(
         content: systemPrompt,
       },
     ]);
+    if (sessionManager) {
+      sessionManager.resetSession(conversationId);
+    }
   };
 
   const countTokens = (messages: ChatMessage[]): number =>
