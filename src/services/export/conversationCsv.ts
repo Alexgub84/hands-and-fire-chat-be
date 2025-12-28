@@ -2,9 +2,9 @@ import type { drive_v3 } from "googleapis";
 import {
   createCsvFile,
   createGoogleDriveClient,
-} from "../../clients/googleDrive";
-import { env, type Environment } from "../../env";
-import { logger } from "../../logger";
+} from "../../clients/googleDrive.js";
+import { env, type Environment } from "../../env.js";
+import { logger } from "../../logger.js";
 
 export interface ConversationCsvMessage {
   role: string;

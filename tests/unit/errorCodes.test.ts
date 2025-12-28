@@ -43,7 +43,7 @@ describe("ERROR_CODES", () => {
       expect(errorInfo, `Error at index ${index}`).toHaveProperty("category");
       expect(errorInfo, `Error at index ${index}`).toHaveProperty("description");
       expect(errorInfo, `Error at index ${index}`).toHaveProperty("explanation");
-      expect(typeof errorInfo.code).toMatch(/^(number|string)$/);
+      expect(["number", "string"]).toContain(typeof errorInfo.code);
       expect(["twilio", "openai", "chromadb", "http", "system"]).toContain(
         errorInfo.service
       );
